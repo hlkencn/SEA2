@@ -1,0 +1,121 @@
+HIROM
+;可用空闲空间
+;1FFBE0-1FFFFF(ROM)
+;00C244-00C7FF(ROM)
+
+;#####################################
+;从WRAM处理角色名至WRAM时，处理角色名称，能够处理双字节[80XX-9FFF]
+ORG $C227A8
+    JML CHECK_CHINESE_1
+CHECK_CHINESE_1_BACK:
+
+;在人物介绍界面，汉字编码的地址查询
+ORG $C21384
+		JML CHECK_CHINESE_2 
+		NOP
+		
+ORG $DFFBE0
+CHECK_CHINESE_1:
+    CMP #$80
+    BCC +    ;小于$80
+    CMP #$A0
+    BCS +    ;大于等于$A0
+    REP #$20 ;在$90-$9F之间
+    LDA [$0c]
+    STA [$10];复制一个字
+    CLC      ;源地址加1
+    LDA $1D,S
+    ADC #$0001
+    STA $1D,S
+    LDA $1F,S
+    ADC #$0000
+    STA $1F,S
+    LDA $24  ;目的地址加1
+    ADC #$0001
+    STA $24
+    LDA $26
+    ADC #$0000
+    STA $26
+    BRA ++
++:  
+    STA [$10]
+++:
+    REP #$20
+    JML CHECK_CHINESE_1_BACK    
+;结束
+
+CHECK_CHINESE_2:    ;在人物介绍界面，汉字编码的地址查询
+    PEA $0020 
+    PEA $0000 
+    CLC       
+    TSC       
+    ADC #$0085
+    PHA       
+    SEC       
+    LDA $AD,s 
+    SBC #$87A0
+    STA $0C   
+    LDA $0C   
+    ASL A     
+    ASL A     
+    ASL A     
+    ASL A     
+    ASL A     
+    STA $0C   
+    STZ $0E   
+    CLC       
+    LDA #$0000
+    ADC $0C   
+    STA $0C   
+    LDA #$00E0
+    ADC $0E   
+    PHA       
+    PEI ($0C) 
+    JML $C213B8
+;#####################################
+assert pc() <= $DFFFFF
+
+
+;#####################################
+;解压缩程序跳过处理
+ORG $C0A0CD
+    JMP uncompress
+    NOP
+    NOP
+    NOP
+    NOP
+uncompress_return:
+    
+
+ORG $C0C244     ;根据BANK判断是解压缩，还是直接复制
+uncompress:     
+    CMP #$00E0
+    BCS +       ;BANK大于等于E0,直接复制
+    SEP #$20    ;8位A
+    JSR $A24C
+    REP #$20    ;16位A
+    JMP uncompress_return
++:
+    ;此处填写复制程序
+    REP #$10   ;16位XY
+    PLY
+    PLX
+    CMP #$00E3
+    BNE +      ;BANK不是E3则跳过
+    LDA #$7FF
+    MVN $7F,$E3
++:
+    CMP #$00E4
+    BNE +      ;BANK不是E4则跳过
+    LDA #$7FF
+    MVN $7F,$E4
++:
+    CMP #$00E5
+    BNE +      ;BANK不是E5则跳过
+    LDA #$7FF
+    MVN $7F,$E5
++:
+    ;此处可以添加非E3-E5的BANK
+    SEP #$10   ;恢复8位XY
+    JMP uncompress_return
+assert pc() <= $C0C7FF
